@@ -1,7 +1,7 @@
 ---
 name: crypto-research
-description: Crypto project research assistant — project overview, team background, funding history, investors, market data, token info, daily fundraising rounds (crypto + all sectors via Crunchbase). Read-only, no trading. Use when user says research, analyze, DYOR, due diligence, investigate, compare tokens, trending, team, funding, investors, fundraising, raises, crunchbase.
-version: 2.3.0
+description: Crypto project research assistant — project overview, team background, funding history, investors, market data, token info, daily fundraising rounds (crypto + all sectors via Crunchbase), Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, GitHub development activity. Read-only, no trading. Use when user says research, analyze, DYOR, due diligence, investigate, compare tokens, trending, team, funding, investors, fundraising, raises, crunchbase, twitter, tweets, reddit, youtube, github, read, search.
+version: 2.5.0
 metadata:
   openclaw:
     emoji: "🔍"
@@ -9,6 +9,11 @@ metadata:
       bins:
         - curl
         - jq
+      optionalBins:
+        - xreach
+        - mcporter
+        - yt-dlp
+        - gh
       env:
         - CMC_PRO_API_KEY
         - ROOTDATA_API_KEY
@@ -36,6 +41,12 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | **Dune Analytics** | On-chain dashboards, custom queries, user/tx metrics | Optional key (free 2500 credits/mo) |
 | **Crunchbase** | Cross-sector fundraising (AI, biotech, fintech, etc.), org info, investors | API key (Pro/Enterprise plan) |
 | **Brave Search** | Fallback for Crunchbase — scrapes crunchbase.com snippets via search | API key (free, 2K queries/mo) |
+| **Twitter/X** (xreach) | Real-time social sentiment, KOL tracking, project tweets | xreach CLI (Agent-Reach) |
+| **Jina Reader** | Read web pages (docs, blogs, whitepapers) as markdown | No key needed (free) |
+| **Exa Search** (mcporter) | Semantic web search for research articles, analysis | mcporter CLI (Agent-Reach) |
+| **Reddit** | Community discussions, sentiment from crypto subreddits | No key needed (JSON API) |
+| **YouTube** (yt-dlp) | Video research: AMAs, interviews, conference talks | yt-dlp CLI |
+| **GitHub** (gh) | Development activity, repo health, commit frequency | gh CLI (optional, curl fallback) |
 
 ## Scripts
 
@@ -46,23 +57,31 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | `scripts/cmc-research.sh` | CMC deep dive (info/quote/global/fear modes) | `bash scripts/cmc-research.sh <symbol> [mode]` |
 | `scripts/defillama-research.sh` | TVL, fees, revenue, DEX volume | `bash scripts/defillama-research.sh <slug> [mode]` |
 | `scripts/kaito-mindshare.sh` | Kaito mindshare, sentiment, narrative links | `bash scripts/kaito-mindshare.sh <token>` |
+| `scripts/community-traction.sh` | Discord, Twitter, Telegram member counts | `bash scripts/community-traction.sh <name_or_id>` |
 | `scripts/dune-search.sh` | Search & list related Dune dashboards | `bash scripts/dune-search.sh <project>` |
 | `scripts/fundraising-daily.sh` | Daily fundraising rounds (RootData + DefiLlama) | `bash scripts/fundraising-daily.sh [mode] [filter]` |
 | `scripts/crunchbase-fundraising.sh` | Cross-sector fundraising via Crunchbase or Brave Search fallback | `bash scripts/crunchbase-fundraising.sh [mode] [filter]` |
 | `scripts/trending.sh` | Market overview + top tokens + categories | `bash scripts/trending.sh` |
 | `scripts/compare.sh` | Side-by-side comparison of two tokens | `bash scripts/compare.sh <symbol_a> <symbol_b>` |
+| `scripts/social-sentiment.sh` | Twitter/X social intelligence (search/account/tweet) | `bash scripts/social-sentiment.sh <query> [mode]` |
+| `scripts/web-reader.sh` | Read web page as markdown via Jina Reader | `bash scripts/web-reader.sh <url>` |
+| `scripts/exa-search.sh` | Semantic web search via Exa | `bash scripts/exa-search.sh <query> [num]` |
+| `scripts/reddit-sentiment.sh` | Reddit crypto discussions | `bash scripts/reddit-sentiment.sh <query> [subreddit]` |
+| `scripts/youtube-research.sh` | YouTube video search and metadata | `bash scripts/youtube-research.sh <query_or_url> [mode]` |
+| `scripts/github-activity.sh` | GitHub repo stats, commits, activity | `bash scripts/github-activity.sh <owner/repo_or_query> [mode]` |
 
 ## Quick Commands
 
 | User Input | Action |
 |------------|--------|
-| "research X" / "调研 X" | Full research: RootData (team + funding) + CMC (market data) + DefiLlama (TVL/fees) + Kaito + Dune |
+| "research X" / "调研 X" | Full research: RootData (team + funding) + CMC (market data) + DefiLlama (TVL/fees) + Community + Kaito + Dune |
 | "team X" / "团队 X" | RootData project detail with team info |
 | "funding X" / "融资 X" / "investors X" | RootData project detail with investors + funding |
 | "price X" / "行情 X" | CMC quick market data |
 | "tvl X" / "TVL X" | DefiLlama TVL + chain breakdown |
 | "fees X" / "revenue X" / "收入 X" | DefiLlama fees & revenue data |
 | "mindshare X" / "注意力 X" / "kaito X" | Kaito mindshare links + analysis guide |
+| "community X" / "社区 X" / "traction X" | Discord, Twitter, Telegram community metrics |
 | "dune X" / "dashboard X" | Search & list related Dune dashboards |
 | "compare X vs Y" / "对比 X Y" | CMC side-by-side comparison |
 | "fundraising" / "融资动态" / "今日融资" | Today's fundraising rounds (RootData + DefiLlama) |
@@ -75,6 +94,16 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | "trending" / "热门" / "市场概览" | CMC market overview + top tokens + Fear & Greed |
 | "cmc X" / "CMC X" | CMC project metadata + description |
 | "fear greed" / "恐贪指数" | CMC Fear & Greed + global market metrics |
+| "twitter X" / "tweets X" / "推特 X" | Twitter/X social sentiment search via xreach |
+| "tweets @handle" | Recent tweets from specific account |
+| "read URL" / "阅读 URL" | Read and summarize a web page via Jina Reader |
+| "search X" / "搜索 X" | Semantic web search via Exa |
+| "reddit X" | Reddit discussions about project (default: r/cryptocurrency) |
+| "reddit X defi" | Reddit discussions in specific subreddit |
+| "youtube X" / "视频 X" | Search YouTube for project videos |
+| "github owner/repo" / "代码 owner/repo" | GitHub repo overview + commits + contributors |
+| "github search X" | Search GitHub for project repositories |
+| "github activity owner/repo" | GitHub development activity analysis |
 
 ## Research Workflow
 
@@ -134,14 +163,45 @@ Kaito has no free API — use links and contextual analysis:
   - Falling mindshare + rising price = potential distribution
   - Sudden mindshare spike = check for catalytic event
 
-### Step 8: On-chain Dashboards (Dune)
+### Step 8: Community Traction (Discord, Twitter, Telegram)
+Fetch community metrics via `community-traction.sh`:
+- Discord: member count + online count via invite API (free, no auth)
+- Twitter/X: follower count from RootData PRO (if available) or profile link
+- Telegram: member count from t.me preview page scraping
+- Key signals:
+  - Discord 100K+ / Twitter 500K+ / TG 100K+ = top-tier community
+  - Discord 30K+ / Twitter 100K+ / TG 30K+ = strong community
+  - No Discord/TG at all = unusual for crypto projects (red flag)
+  - Very low online ratio (<1%) in Discord = possible bot inflation
+  - Rapid member growth + low engagement = bot farming risk
+
+### Step 8b: Social Sentiment (Twitter/X + Reddit)
+If `xreach` is available, search Twitter/X for project discussions:
+- `bash scripts/social-sentiment.sh <project> search` for recent tweets
+- Look for: KOL mentions, sentiment ratio, trending discussions
+- Check for unusual activity spikes or FUD campaigns
+
+Always check Reddit (no tools beyond curl needed):
+- `bash scripts/reddit-sentiment.sh <project>` for r/cryptocurrency discussions
+- Check project-specific subreddit if it exists: `bash scripts/reddit-sentiment.sh <project> <subreddit>`
+- Key signals: post frequency, upvote ratios, common complaints
+
+### Step 9: On-chain Dashboards (Dune)
 Search for relevant Dune dashboards:
 - Provide curated dashboard links for well-known protocols
 - Generate search URLs: `https://dune.com/browse/dashboards?q={project}`
 - Suggest search variations: metrics, revenue, users, token, treasury
 - If DUNE_API_KEY set: query the API for matching dashboards
 
-### Step 9: Summary & Assessment
+### Step 9b: Development Activity (GitHub)
+If the project has a GitHub presence:
+- `bash scripts/github-activity.sh <owner/repo>` for repo health
+- `bash scripts/github-activity.sh <owner/repo> activity` for development metrics
+- Key signals: commit frequency, contributor count, issue activity, last push date
+- Red flags: no commits in 90+ days, few contributors, many open issues with no response
+- Green flags: frequent commits, active issue triage, regular releases
+
+### Step 10: Summary & Assessment
 Compile findings into a **concise** report (see Output Format below). Only include sections with actual data. Skip empty sections entirely.
 
 ## API Reference
@@ -285,6 +345,28 @@ curl -s "https://api.llama.fi/raises"
 curl -s "https://api.llama.fi/stablecoins"
 ```
 
+### Discord Invite API (no key needed)
+
+Used to fetch server member count and online count from Discord invite links.
+
+```bash
+# Get server info from invite code (free, no auth)
+curl -s "https://discord.com/api/v9/invites/{invite_code}?with_counts=true"
+```
+Returns: `guild.name`, `approximate_member_count`, `approximate_presence_count` (online)
+
+Extract invite code from URLs like `https://discord.gg/CODE` or `https://discord.com/invite/CODE`.
+
+### Telegram t.me Preview (no key needed)
+
+Scrape member/subscriber count from the public Telegram preview page.
+
+```bash
+# Fetch public preview page
+curl -s "https://t.me/{channel_handle}"
+```
+Parse the HTML for patterns like `N members` or `N subscribers`.
+
 ### Kaito (no free API)
 
 Kaito mindshare data requires a Kaito Pro subscription. For the skill, we provide:
@@ -389,6 +471,83 @@ Returns: `web.results[]` with `title`, `url`, `description`, `extra_snippets[]`
 - Best for: org lookup, broad funding news, keyword searches
 - Not suitable for: precise daily round tracking, aggregated statistics
 
+### Twitter/X via xreach (Agent-Reach)
+
+Requires `xreach` CLI (installed via Agent-Reach or `npm install -g xreach-cli`).
+Auth: Twitter cookies (`auth_token` + `ct0`) configured via `agent-reach configure twitter-cookies`.
+
+```bash
+# Search tweets
+xreach search "query" --json -n 15
+
+# Read user timeline
+xreach tweets @username --json -n 10
+
+# Read a specific tweet
+xreach tweet https://x.com/user/status/123 --json
+```
+
+### Jina Reader (no key needed)
+
+Converts any URL to clean markdown. Always available — requires only curl.
+
+```bash
+# Read any web page as markdown
+curl -s "https://r.jina.ai/https://example.com" -H "Accept: text/markdown"
+
+# Search the web
+curl -s "https://s.jina.ai/query" -H "Accept: text/markdown"
+```
+
+### Exa Search via mcporter (Agent-Reach)
+
+Semantic web search. Requires `mcporter` CLI with Exa MCP configured.
+
+```bash
+# Web search
+mcporter call 'exa.web_search_exa(query: "query", numResults: 5)'
+
+# Company research
+mcporter call 'exa.company_research_exa(companyName: "OpenAI")'
+```
+
+### Reddit JSON API (no key needed)
+
+Free public API. Use `User-Agent` header. May need proxy on server IPs.
+
+```bash
+# Search a subreddit
+curl -s "https://www.reddit.com/r/cryptocurrency/search.json?q=query&restrict_sr=1&sort=relevance&t=month&limit=10" -H "User-Agent: crypto-research-skill/2.5"
+
+# Hot posts
+curl -s "https://www.reddit.com/r/cryptocurrency/hot.json?limit=5" -H "User-Agent: crypto-research-skill/2.5"
+```
+
+### YouTube via yt-dlp
+
+Requires `yt-dlp` CLI (`pip install yt-dlp` or `brew install yt-dlp`).
+
+```bash
+# Search videos
+yt-dlp --dump-json --flat-playlist "ytsearch5:query"
+
+# Get video metadata
+yt-dlp --dump-json "https://www.youtube.com/watch?v=xxx"
+```
+
+### GitHub API (gh CLI preferred, curl fallback)
+
+`gh` CLI: authenticated, higher rate limits. Curl fallback: 60 req/hour unauthenticated.
+
+```bash
+# Via gh CLI
+gh api /repos/owner/repo
+gh search repos "query" --json fullName,description,stargazersCount --limit 10
+
+# Via curl (fallback)
+curl -s "https://api.github.com/repos/owner/repo" -H "Accept: application/vnd.github+json"
+```
+
 ## Presentation Rules
 
 **Be concise.** Users want data, not decoration.
@@ -426,9 +585,17 @@ Ratios: Vol/MCap {X} · FDV/MCap {X}x · Pairs: {X}
 **TVL & Revenue:** TVL ${X}M ({7d_change}) · Fees ${X}K/d · Revenue ${X}K/d
 [Only if DeFi protocol with data]
 
+**Community:** Discord {X}K · Twitter {X}K · TG {X}K — [1-line assessment]
+
 **Mindshare:** Kaito: {link} · [1-line signal if notable]
 
 **Dune:** {1-2 dashboard links if relevant}
+
+**Social Buzz:** Twitter: {key observations from xreach} · Reddit: {top discussion themes}
+[Only if xreach available or Reddit has results]
+
+**Dev Activity:** GitHub: {stars} stars · {commits/4w} commits/4w · {contributors} contributors — [1-line assessment]
+[Only if GitHub repo exists]
 
 **Assessment:** [2-3 key findings: strengths, risks, verdict]
 
@@ -464,7 +631,29 @@ export CRUNCHBASE_API_KEY="your_key_here"
 export BRAVE_API_KEY="your_key_here"
 ```
 
-Degraded functionality if keys are missing:
+### Optional: Agent-Reach Tools
+
+Additional research capabilities via [Agent-Reach](https://github.com/Panniantong/Agent-Reach):
+
+```bash
+# Install Agent-Reach (installs xreach, mcporter, yt-dlp, etc.)
+pip install https://github.com/Panniantong/agent-reach/archive/main.zip
+agent-reach install --env=auto
+
+# Or install tools individually:
+npm install -g xreach-cli          # Twitter/X
+npm install -g mcporter            # Exa semantic search
+pip install yt-dlp                 # YouTube
+brew install gh && gh auth login   # GitHub CLI
+
+# Check what's installed
+agent-reach doctor
+```
+
+All Agent-Reach tools are optional. Core research (RootData, CMC, DefiLlama) works without them.
+Jina Reader (web reading) and Reddit always work — they only need curl.
+
+Degraded functionality if keys/tools are missing:
 - **No RootData key**: Cannot fetch team members, investors, or funding data
 - **No CMC key**: Cannot fetch market data, prices, or rankings
 - **No Dune key**: Dashboard search still works via URLs, but cannot query data via API
@@ -473,6 +662,12 @@ Degraded functionality if keys are missing:
 - **DefiLlama**: Always available (TVL, fees, revenue, raises) — no key needed
 - **Kaito**: Portal links always available — no free API exists
 - **All keys missing**: Can still use DefiLlama + Kaito links + Dune search URLs
+- **No xreach**: Cannot search Twitter/X directly; community-traction.sh still provides follower counts
+- **No mcporter**: Cannot use Exa semantic search; fallback search URL provided
+- **No yt-dlp**: Cannot search YouTube; fallback manual search URL provided
+- **No gh CLI**: GitHub research falls back to curl + GitHub API (unauthenticated, 60 req/hour)
+- **Jina Reader**: Always available (requires only curl)
+- **Reddit**: Always available (public JSON API, no auth)
 
 ## Error Handling
 
