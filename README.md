@@ -1,4 +1,4 @@
-# crypto-research v2.5.0
+# crypto-research v2.6.0
 
 Claude Code skill for crypto due diligence — project overview, team, funding, investors, market data, TVL, mindshare, on-chain dashboards, cross-sector fundraising, Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, and GitHub development activity. Read-only, no trading.
 
@@ -19,6 +19,9 @@ Claude Code skill for crypto due diligence — project overview, team, funding, 
 | [Reddit](https://www.reddit.com) | Community discussions, sentiment | No key needed |
 | YouTube ([yt-dlp](https://github.com/yt-dlp/yt-dlp)) | Video research: AMAs, interviews, talks | yt-dlp CLI |
 | [GitHub](https://github.com) | Development activity, repo health | gh CLI (optional) |
+| [CoinGecko](https://www.coingecko.com) | Community data (TG, Reddit) + developer stats | Optional API key (free 30 req/min) |
+| [LunarCrush](https://lunarcrush.com) | Galaxy Score, AltRank, social sentiment | API key ($24/mo or free Discover) |
+| Telegram Bot API | Accurate channel/group member counts | Bot token (free via @BotFather) |
 
 ## Setup
 
@@ -31,6 +34,9 @@ export CMC_PRO_API_KEY="your_key_here"
 export DUNE_API_KEY="your_key_here"
 export CRUNCHBASE_API_KEY="your_key_here"
 export BRAVE_API_KEY="your_key_here"      # fallback for Crunchbase
+export COINGECKO_API_KEY="your_key_here"  # optional (free Demo: 30 req/min)
+export LUNARCRUSH_API_KEY="your_key_here" # optional ($24/mo or free Discover)
+export TELEGRAM_BOT_TOKEN="your_token"    # optional (free via @BotFather)
 ```
 
 ### Optional: Agent-Reach Tools
@@ -52,7 +58,7 @@ brew install gh && gh auth login   # GitHub CLI
 agent-reach doctor
 ```
 
-Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune search URLs, Jina Reader (web), and Reddit always work with no keys or tools.
+Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune search URLs, Jina Reader (web), Reddit, and CoinGecko (free tier) always work with no keys or tools.
 
 **Crunchbase fallback:** `CRUNCHBASE_API_KEY` (best) > `BRAVE_API_KEY` (snippets) > exit with instructions.
 
@@ -65,7 +71,9 @@ Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune 
 | `cmc-research.sh` | CMC deep dive (info/quote/global/fear) | `bash scripts/cmc-research.sh ETH quote` |
 | `defillama-research.sh` | TVL, fees, revenue, DEX volume | `bash scripts/defillama-research.sh aave` |
 | `kaito-mindshare.sh` | Mindshare, sentiment, narrative links | `bash scripts/kaito-mindshare.sh ETH` |
-| `community-traction.sh` | Discord, Twitter, TG member counts | `bash scripts/community-traction.sh Ethereum` |
+| `community-traction.sh` | Community metrics (CoinGecko + TG + Discord + LunarCrush) | `bash scripts/community-traction.sh Ethereum` |
+| `coingecko-community.sh` | CoinGecko community + developer data | `bash scripts/coingecko-community.sh ethereum` |
+| `lunarcrush.sh` | LunarCrush social sentiment & Galaxy Score | `bash scripts/lunarcrush.sh ETH` |
 | `dune-search.sh` | Related Dune dashboards | `bash scripts/dune-search.sh uniswap` |
 | `fundraising-daily.sh` | Crypto fundraising (RootData + DefiLlama) | `bash scripts/fundraising-daily.sh today` |
 | `crunchbase-fundraising.sh` | Cross-sector fundraising (CB or Brave) | `bash scripts/crunchbase-fundraising.sh org openai` |
@@ -89,7 +97,9 @@ Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune 
 | `tvl X` | DefiLlama TVL + chain breakdown |
 | `fees X` / `revenue X` | DefiLlama fees & revenue |
 | `mindshare X` / `kaito X` | Kaito mindshare links + analysis |
-| `community X` / `traction X` | Discord, Twitter, TG community metrics |
+| `community X` / `traction X` | Community metrics (CoinGecko + TG + Discord + LunarCrush) |
+| `coingecko X` | CoinGecko community + developer data |
+| `sentiment X` / `lunarcrush X` | LunarCrush social sentiment & Galaxy Score |
 | `dune X` | Related Dune dashboards |
 | `compare X vs Y` | Side-by-side token comparison |
 | `trending` | Market overview + Fear & Greed |
@@ -112,7 +122,7 @@ Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune 
 | `github search X` | Search GitHub repositories |
 | `github activity owner/repo` | Dev activity analysis |
 
-Chinese commands supported: `调研`, `团队`, `融资`, `行情`, `对比`, `热门`, `CB融资`, `注意力`, `社区`, `收入`, `恐贪指数`, `推特`, `阅读`, `搜索`, `视频`, `代码`.
+Chinese commands supported: `调研`, `团队`, `融资`, `行情`, `对比`, `热门`, `CB融资`, `注意力`, `社区`, `收入`, `恐贪指数`, `推特`, `阅读`, `搜索`, `视频`, `代码`, `情绪`.
 
 ## Requirements
 

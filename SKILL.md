@@ -1,7 +1,7 @@
 ---
 name: crypto-research
 description: Crypto project research assistant — project overview, team background, funding history, investors, market data, token info, daily fundraising rounds (crypto + all sectors via Crunchbase), Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, GitHub development activity. Read-only, no trading. Use when user says research, analyze, DYOR, due diligence, investigate, compare tokens, trending, team, funding, investors, fundraising, raises, crunchbase, twitter, tweets, reddit, youtube, github, read, search.
-version: 2.5.0
+version: 2.6.0
 metadata:
   openclaw:
     emoji: "🔍"
@@ -21,6 +21,9 @@ metadata:
         - DUNE_API_KEY
         - CRUNCHBASE_API_KEY
         - BRAVE_API_KEY
+        - COINGECKO_API_KEY
+        - LUNARCRUSH_API_KEY
+        - TELEGRAM_BOT_TOKEN
     primaryEnv: ROOTDATA_API_KEY
 ---
 
@@ -59,6 +62,9 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | **Reddit** | Community discussions, sentiment from crypto subreddits | No key needed (JSON API) |
 | **YouTube** (yt-dlp) | Video research: AMAs, interviews, conference talks | yt-dlp CLI |
 | **GitHub** (gh) | Development activity, repo health, commit frequency | gh CLI (optional, curl fallback) |
+| **CoinGecko** | Community data (TG, Reddit) + developer data (GitHub stats) | No key needed (free Demo 30/min) |
+| **LunarCrush** | Galaxy Score, sentiment, social dominance, AltRank | API key (free Discover plan) |
+| **Telegram Bot API** | Accurate group/channel member count | Bot token (free via @BotFather) |
 
 ## Scripts
 
@@ -69,7 +75,9 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | `scripts/cmc-research.sh` | CMC deep dive (info/quote/global/fear modes) | `bash scripts/cmc-research.sh <symbol> [mode]` |
 | `scripts/defillama-research.sh` | TVL, fees, revenue, DEX volume | `bash scripts/defillama-research.sh <slug> [mode]` |
 | `scripts/kaito-mindshare.sh` | Kaito mindshare, sentiment, narrative links | `bash scripts/kaito-mindshare.sh <token>` |
-| `scripts/community-traction.sh` | Discord, Twitter, Telegram member counts | `bash scripts/community-traction.sh <name_or_id>` |
+| `scripts/community-traction.sh` | Community metrics: CoinGecko + TG Bot + Discord + LunarCrush | `bash scripts/community-traction.sh <name_or_id>` |
+| `scripts/coingecko-community.sh` | CoinGecko community_data + developer_data standalone | `bash scripts/coingecko-community.sh <coin_id>` |
+| `scripts/lunarcrush.sh` | LunarCrush social sentiment (Galaxy Score, AltRank) | `bash scripts/lunarcrush.sh <coin> [mode]` |
 | `scripts/dune-search.sh` | Search & list related Dune dashboards | `bash scripts/dune-search.sh <project>` |
 | `scripts/fundraising-daily.sh` | Daily fundraising rounds (RootData + DefiLlama) | `bash scripts/fundraising-daily.sh [mode] [filter]` |
 | `scripts/crunchbase-fundraising.sh` | Cross-sector fundraising via Crunchbase or Brave Search fallback | `bash scripts/crunchbase-fundraising.sh [mode] [filter]` |
@@ -93,7 +101,9 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | "tvl X" / "TVL X" | DefiLlama TVL + chain breakdown |
 | "fees X" / "revenue X" / "收入 X" | DefiLlama fees & revenue data |
 | "mindshare X" / "注意力 X" / "kaito X" | Kaito mindshare links + analysis guide |
-| "community X" / "社区 X" / "traction X" | Discord, Twitter, Telegram community metrics |
+| "community X" / "社区 X" / "traction X" | Community metrics (CoinGecko + TG + Discord + LunarCrush) |
+| "coingecko X" / "CG X" | CoinGecko community + developer data |
+| "lunarcrush X" / "sentiment X" / "情绪 X" | LunarCrush social sentiment (Galaxy Score, AltRank) |
 | "dune X" / "dashboard X" | Search & list related Dune dashboards |
 | "compare X vs Y" / "对比 X Y" | CMC side-by-side comparison |
 | "fundraising" / "融资动态" / "今日融资" | Today's fundraising rounds (RootData + DefiLlama) |
@@ -187,15 +197,18 @@ Kaito has no free API — use links and contextual analysis:
   - Falling mindshare + rising price = potential distribution
   - Sudden mindshare spike = check for catalytic event
 
-### Step 8: Community Traction (Discord, Twitter, Telegram)
-Fetch community metrics via `community-traction.sh`:
-- Discord: member count + online count via invite API (free, no auth)
-- Twitter/X: follower count from RootData PRO (if available) or profile link
-- Telegram: member count from t.me preview page scraping
+### Step 8: Community Traction & Social Sentiment
+Fetch community metrics via `community-traction.sh` (executes all sources in priority order):
+1. **CoinGecko** (primary): `community_data` (TG members, Reddit subs/activity) + `developer_data` (GitHub stars, forks, commits, PRs)
+2. **Telegram Bot API** (if `TELEGRAM_BOT_TOKEN` set): accurate member count via `getChatMemberCount`
+3. **Discord Invite API** (free): member count + online count from invite link
+4. **Twitter/X**: RootData PRO follower/influence data (no free X API available)
+5. **LunarCrush** (if `LUNARCRUSH_API_KEY` set): Galaxy Score, AltRank, sentiment %, social dominance
 - Key signals:
   - Discord 100K+ / Twitter 500K+ / TG 100K+ = top-tier community
   - Discord 30K+ / Twitter 100K+ / TG 30K+ = strong community
   - No Discord/TG at all = unusual for crypto projects (red flag)
+  - Galaxy Score > 70 = strong social health; < 40 = weak
 
 ### Step 8b: Social Sentiment (Twitter/X + Reddit)
 If `xreach` is available, search Twitter/X for project discussions:
@@ -569,6 +582,49 @@ gh search repos "query" --json fullName,description,stargazersCount --limit 10
 curl -s "https://api.github.com/repos/owner/repo" -H "Accept: application/vnd.github+json"
 ```
 
+### CoinGecko API (free Demo plan, 30 calls/min)
+
+**Base URL**: `https://api.coingecko.com/api/v3` (Demo) or `https://pro-api.coingecko.com/api/v3` (Pro)
+**Auth**: Header `x-cg-pro-api-key: {key}` (Pro only; Demo works without key)
+
+```bash
+# Get community_data + developer_data (primary community traction source)
+curl -s "https://api.coingecko.com/api/v3/coins/ethereum?localization=false&tickers=false&market_data=false&community_data=true&developer_data=true&sparkline=false"
+
+# Search for coin ID
+curl -s "https://api.coingecko.com/api/v3/search?query=uniswap"
+```
+
+Returns `community_data`: `telegram_channel_user_count`, `reddit_subscribers`, `reddit_average_posts_48h`, `reddit_average_comments_48h`, `reddit_accounts_active_48h`
+Returns `developer_data`: `forks`, `stars`, `subscribers`, `total_issues`, `closed_issues`, `pull_requests_merged`, `pull_request_contributors`, `commit_count_4_weeks`, `code_additions_deletions_4_weeks`
+
+**Note**: `twitter_followers` removed by CoinGecko since May 2025 due to X API restrictions.
+
+### LunarCrush API v4 (free Discover plan available)
+
+**Base URL**: `https://lunarcrush.com/api4`
+**Auth**: Header `Authorization: Bearer {key}`
+**Get key**: https://lunarcrush.com/developers/api
+
+```bash
+# Get coin social metrics
+curl -H "Authorization: Bearer $LUNARCRUSH_API_KEY" \
+  "https://lunarcrush.com/api4/public/coins/bitcoin/v1"
+```
+
+Returns: `galaxy_score` (0-100 social health), `alt_rank`, `sentiment`, `social_dominance`, `social_volume`, `social_interactions`, `social_contributors`
+
+### Telegram Bot API (free)
+
+**Auth**: Bot token from @BotFather
+**Docs**: https://core.telegram.org/bots/api
+
+```bash
+# Get group/channel member count (free, accurate)
+curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMemberCount?chat_id=@channel_name"
+# Returns: {"ok": true, "result": 37675}
+```
+
 ## Presentation Rules
 
 **Be concise. Results only. No process narration.**
@@ -656,6 +712,18 @@ export CRUNCHBASE_API_KEY="your_key_here"
 # Brave Search — fallback for Crunchbase when no CB key (optional)
 # Get free at: https://brave.com/search/api/ (2,000 queries/mo)
 export BRAVE_API_KEY="your_key_here"
+
+# CoinGecko — community + developer data (optional, free Demo plan 30/min)
+# Pro key at: https://www.coingecko.com/en/api/pricing (free Demo plan works without key)
+export COINGECKO_API_KEY=""
+
+# LunarCrush — social sentiment, Galaxy Score (optional)
+# Free Discover plan at: https://lunarcrush.com/developers/api
+export LUNARCRUSH_API_KEY="your_key_here"
+
+# Telegram Bot API — accurate group member counts (optional, free)
+# Create bot at: https://t.me/BotFather → /newbot → copy token
+export TELEGRAM_BOT_TOKEN="your_bot_token_here"
 ```
 
 ### Optional: Agent-Reach Tools
@@ -695,6 +763,9 @@ Degraded functionality if keys/tools are missing:
 - **No gh CLI**: GitHub research falls back to curl + GitHub API (unauthenticated, 60 req/hour)
 - **Jina Reader**: Always available (requires only curl)
 - **Reddit**: Always available (public JSON API, no auth)
+- **CoinGecko**: Free Demo plan (30/min), no key needed; community_data + developer_data always available
+- **No LunarCrush key**: Social sentiment scores unavailable; community-traction.sh skips LunarCrush section
+- **No Telegram Bot Token**: Falls back to t.me page scraping (less accurate); CoinGecko TG data still available
 
 ## Error Handling
 
