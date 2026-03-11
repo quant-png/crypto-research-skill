@@ -1,7 +1,7 @@
 ---
 name: crypto-research
 description: Crypto project research assistant — project overview, team background, funding history, investors, market data, token info, daily fundraising rounds (crypto + all sectors via Crunchbase), Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, GitHub development activity. Read-only, no trading. Use when user says research, analyze, DYOR, due diligence, investigate, compare tokens, trending, team, funding, investors, fundraising, raises, crunchbase, twitter, tweets, reddit, youtube, github, read, search.
-version: 2.6.0
+version: 2.7.0
 metadata:
   openclaw:
     emoji: "🔍"
@@ -16,15 +16,16 @@ metadata:
         - gh
       env:
         - CMC_PRO_API_KEY
-        - ROOTDATA_API_KEY
       optionalEnv:
+        - ROOTDATA_SKILL_KEY
+        - ROOTDATA_API_KEY
         - DUNE_API_KEY
         - CRUNCHBASE_API_KEY
         - BRAVE_API_KEY
         - COINGECKO_API_KEY
         - LUNARCRUSH_API_KEY
         - TELEGRAM_BOT_TOKEN
-    primaryEnv: ROOTDATA_API_KEY
+    primaryEnv: CMC_PRO_API_KEY
 ---
 
 # Crypto Research Assistant
@@ -49,7 +50,7 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 
 | Source | Purpose | Auth |
 |--------|---------|------|
-| **RootData** | Project info, team members, investors, funding rounds, ecosystem, tags | API key (free tier available) |
+| **RootData** | Project info, team members, investors, funding rounds, trending, ecosystem, tags | Auto-init key (no registration) or manual API key |
 | **CoinMarketCap** | Market data, price, volume, supply, rankings, Fear & Greed | API key (free, 10K credits/mo) |
 | **DefiLlama** | TVL, fees, revenue, DEX volume, chain data, protocol metrics | No key needed |
 | **Kaito** | Mindshare %, sentiment, narrative tracking, social attention | No free API (portal links provided) |
@@ -70,7 +71,7 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `scripts/rootdata-research.sh` | Project detail + team + investors + funding | `bash scripts/rootdata-research.sh <name_or_id>` |
+| `scripts/rootdata-research.sh` | Project detail + team + investors + funding + trending | `bash scripts/rootdata-research.sh <name_or_id> [full\|team\|funding\|vc\|trending\|idmap]` |
 | `scripts/quick-research.sh` | CMC market data + project info + risk flags | `bash scripts/quick-research.sh <symbol_or_slug>` |
 | `scripts/cmc-research.sh` | CMC deep dive (info/quote/global/fear modes) | `bash scripts/cmc-research.sh <symbol> [mode]` |
 | `scripts/defillama-research.sh` | TVL, fees, revenue, DEX volume | `bash scripts/defillama-research.sh <slug> [mode]` |
@@ -113,7 +114,8 @@ You are a crypto research analyst. Your job is to help users perform basic due d
 | "crunchbase category AI" / "CB AI融资" | Crunchbase fundraising filtered by sector |
 | "crunchbase org openai" / "CB查公司 anthropic" | Crunchbase org lookup with funding history |
 | "crunchbase top" / "最大融资" | Largest raises last 30 days (Crunchbase) |
-| "trending" / "热门" / "市场概览" | CMC market overview + top tokens + Fear & Greed |
+| "trending" / "热门" / "市场概览" | CMC market overview + top tokens + Fear & Greed + RootData trending |
+| "rootdata trending" / "RD热门" | RootData trending projects (today or week) |
 | "cmc X" / "CMC X" | CMC project metadata + description |
 | "fear greed" / "恐贪指数" | CMC Fear & Greed + global market metrics |
 | "twitter X" / "tweets X" / "推特 X" | Twitter/X social sentiment search via xreach |
@@ -137,8 +139,15 @@ When the user asks to research a project, **silently execute all steps below**, 
 > 2. **官网缺失则补充** — 官网未覆盖的数据维度（行情、TVL、融资轮次等），再从对应数据平台获取
 > 3. **官网信息为准** — 官网数据与第三方平台冲突时，以官网为准，可注明差异
 
+### Step 0: RootData Key Auto-Init
+If neither `ROOTDATA_SKILL_KEY` nor `ROOTDATA_API_KEY` is set, auto-initialize:
+```bash
+curl -s -X POST -H "Content-Type: application/json" -d '{}' https://api.rootdata.com/open/skill/init
+```
+Save the returned `api_key` as `ROOTDATA_SKILL_KEY`. No registration needed.
+
 ### Step 1: Identify the Project
-- Search on RootData via `/open/ser_inv` to get the `project_id` and official website URL
+- Search on RootData via skill API (`/open/skill/ser_inv`) or standard API (`/open/ser_inv`) to get the `project_id` and official website URL
 - If not found, search on CMC via `/v1/cryptocurrency/map` to get the CMC ID
 - Extract the project's **official website URL** from RootData `social_media.website` or CMC `urls.website`
 - Only confirm with the user if multiple results match and you cannot determine which one
@@ -242,63 +251,98 @@ Compile ALL collected data into a **single concise report** (see Output Format b
 
 ### RootData API
 
-**Base URL**: `https://api.rootdata.com`
-**Auth**: Header `apikey: {your_key}` + `language: en` (or `cn`)
-**All methods**: POST with JSON body
+**Two access modes** (scripts support both automatically):
+
+| Mode | Env Var | Auth Header | Base Path | Rate Limit |
+|------|---------|-------------|-----------|------------|
+| **Skill API** (recommended) | `ROOTDATA_SKILL_KEY` | `Authorization: Bearer {key}` | `/open/skill/*` | 200 req/min |
+| **Standard API** | `ROOTDATA_API_KEY` | `apikey: {key}` + `language: en` | `/open/*` | Credit-based |
+
+**Auto-init** (Skill API only, no registration needed):
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{}' https://api.rootdata.com/open/skill/init
+# Returns: {"data": {"api_key": "..."}}
+# Save as ROOTDATA_SKILL_KEY. Anonymous, low-privilege, public data only.
+```
 
 #### Search — find project/VC/people
 ```bash
-curl -X POST \
-  -H "apikey: $ROOTDATA_API_KEY" \
-  -H "language: en" \
+# Skill API
+curl -X POST -H "Authorization: Bearer $ROOTDATA_SKILL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Ethereum", "precise_x_search": false}' \
+  https://api.rootdata.com/open/skill/ser_inv
+
+# Standard API
+curl -X POST -H "apikey: $ROOTDATA_API_KEY" -H "language: en" \
   -H "Content-Type: application/json" \
   -d '{"query": "Ethereum"}' \
   https://api.rootdata.com/open/ser_inv
 ```
 Returns: `id`, `type` (1=Project, 2=VC, 3=People), `name`, `logo`, `introduce`, `active`, `rootdataurl`
-**Credits**: Free, unlimited
 
 #### Get Project — full detail with team & investors
 ```bash
-curl -X POST \
-  -H "apikey: $ROOTDATA_API_KEY" \
-  -H "language: en" \
+# Skill API
+curl -X POST -H "Authorization: Bearer $ROOTDATA_SKILL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": 12, "include_investors": true}' \
+  https://api.rootdata.com/open/skill/get_item
+
+# Standard API
+curl -X POST -H "apikey: $ROOTDATA_API_KEY" -H "language: en" \
   -H "Content-Type: application/json" \
   -d '{"project_id": 12, "include_team": true, "include_investors": true}' \
   https://api.rootdata.com/open/get_item
 ```
+Also supports: `"contract_address": "0x..."` instead of project_id.
 Returns:
-- `project_name`, `one_liner`, `description`, `tags`, `ecosystem`
-- `establishment_date`, `total_funding`, `social_media`
+- `project_name`, `one_liner`, `description`, `tags`, `ecosystem`, `active`
+- `establishment_date`, `total_funding`, `social_media`, `contracts`
 - `team_members[]` — name, position, LinkedIn, Twitter
 - `investors[]` — name, logo
 - `similar_project[]`
-- PRO tier: `price`, `market_cap`, `fully_diluted_market_cap`, `contracts`, `support_exchanges`, `event`, `reports`, `heat`, `influence`
-**Credits**: 2 per call
+- PRO tier: `price`, `market_cap`, `fully_diluted_market_cap`, `support_exchanges`, `event`, `reports`, `heat`, `influence`
 
 #### Get VC — investor detail with portfolio
 ```bash
-curl -X POST \
-  -H "apikey: $ROOTDATA_API_KEY" \
-  -H "language: en" \
+curl -X POST -H "Authorization: Bearer $ROOTDATA_SKILL_KEY" \
   -H "Content-Type: application/json" \
   -d '{"org_id": 219, "include_team": true, "include_investments": true}' \
-  https://api.rootdata.com/open/get_org
+  https://api.rootdata.com/open/skill/get_org
 ```
 Returns: `org_name`, `description`, `category`, `establishment_date`, `social_media`, `team_members[]`, `investments[]`
-**Credits**: 2 per call
 
 #### Get Fundraising Rounds
 ```bash
-curl -X POST \
-  -H "apikey: $ROOTDATA_API_KEY" \
-  -H "language: en" \
+curl -X POST -H "Authorization: Bearer $ROOTDATA_SKILL_KEY" \
   -H "Content-Type: application/json" \
-  -d '{}' \
-  https://api.rootdata.com/open/get_fac
+  -d '{"page": 1, "page_size": 20, "start_time": "2024-01", "end_time": "2025-12"}' \
+  https://api.rootdata.com/open/skill/get_fac
 ```
-Returns: `items[]` with `name`, `amount`, `valuation`, `published_time`, `rounds` (Pre-Seed/Seed/Series A...), `invests[]`
-**Credits**: 2 per record
+All filter fields optional: `project_id`, `start_time` (yyyy-MM), `end_time`, `min_amount`, `max_amount`
+Returns: `total`, `items[]` with `name`, `amount`, `valuation`, `published_time`, `rounds`, `source_url`, `invests[]` (name, lead_investor, type, rootdataurl)
+**Data range**: From 2018 onwards.
+
+#### Trending Projects (Skill API)
+```bash
+curl -X POST -H "Authorization: Bearer $ROOTDATA_SKILL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"days": 1}' \
+  https://api.rootdata.com/open/skill/hot_index
+```
+`days`: 1 = today, 7 = this week
+Returns: `rank`, `project_id`, `project_name`, `token_symbol`, `one_liner`, `tags`, `X` (Twitter URL), `rootdataurl`
+
+#### Get All IDs by Type (Skill API)
+```bash
+curl -X POST -H "Authorization: Bearer $ROOTDATA_SKILL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"type": 1}' \
+  https://api.rootdata.com/open/skill/id_map
+```
+`type`: 1=Project, 2=Institution, 3=Person
+Returns: `id`, `name`
 
 ### CoinMarketCap API
 

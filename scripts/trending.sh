@@ -105,7 +105,46 @@ else
   ' 2>/dev/null || echo "⚠️ Failed to parse categories"
 fi
 
-# --- 5. DefiLlama Top Protocols (no key needed, complements CMC) ---
+# --- 5. RootData Trending Projects ---
+RD_SKILL_KEY="${ROOTDATA_SKILL_KEY:-}"
+RD_API_KEY="${ROOTDATA_API_KEY:-}"
+RD_KEY=""
+RD_USE_SKILL=false
+if [[ -n "$RD_SKILL_KEY" ]]; then
+  RD_KEY="$RD_SKILL_KEY"; RD_USE_SKILL=true
+elif [[ -n "$RD_API_KEY" ]]; then
+  RD_KEY="$RD_API_KEY"
+fi
+
+if [[ -n "$RD_KEY" ]]; then
+  echo ""
+  echo "🔥 Trending Crypto Projects (RootData)"
+  echo "---"
+  if [[ "$RD_USE_SKILL" == "true" ]]; then
+    RD_TREND=$(curl -s -X POST \
+      -H "Authorization: Bearer $RD_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"days": 1}' \
+      "https://api.rootdata.com/open/skill/hot_index" 2>/dev/null)
+  else
+    RD_TREND=$(curl -s -X POST \
+      -H "apikey: $RD_KEY" \
+      -H "language: en" \
+      -H "Content-Type: application/json" \
+      -d '{"days": 1}' \
+      "https://api.rootdata.com/open/hot_index" 2>/dev/null)
+  fi
+  RD_ERR=$(echo "$RD_TREND" | jq -r '.result // 0' 2>/dev/null)
+  if [[ "$RD_ERR" == "200" ]]; then
+    echo "$RD_TREND" | jq -r '.data[:10][] |
+      "#\(.rank // "-") \(.project_name // .name // "Unknown") (\(.token_symbol // "—")) — \(.one_liner // "" | .[:80])"
+    ' 2>/dev/null || echo "⚠️ Failed to parse RootData trending"
+  else
+    echo "⚠️ RootData trending unavailable"
+  fi
+fi
+
+# --- 6. DefiLlama Top Protocols (no key needed, complements CMC) ---
 echo ""
 echo "🏦 Top DeFi Protocols by TVL (DefiLlama)"
 echo "---"

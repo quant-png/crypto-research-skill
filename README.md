@@ -1,4 +1,4 @@
-# crypto-research v2.6.0
+# crypto-research v2.7.0
 
 Claude Code skill for crypto due diligence — project overview, team, funding, investors, market data, TVL, mindshare, on-chain dashboards, cross-sector fundraising, Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, and GitHub development activity. Read-only, no trading.
 
@@ -6,7 +6,7 @@ Claude Code skill for crypto due diligence — project overview, team, funding, 
 
 | Source | Purpose | Auth |
 |--------|---------|------|
-| [RootData](https://www.rootdata.com/Api) | Project info, team, investors, funding rounds | API key (free tier) |
+| [RootData](https://www.rootdata.com/Api) | Project info, team, investors, funding, trending | Auto-init (no registration) or API key |
 | [CoinMarketCap](https://pro.coinmarketcap.com) | Price, volume, supply, rankings, Fear & Greed | API key (free, 10K credits/mo) |
 | [DefiLlama](https://defillama.com) | TVL, fees, revenue, DEX volume, raises | No key needed |
 | [Kaito](https://www.kaito.ai) | Mindshare, sentiment, narrative tracking | No free API (portal links) |
@@ -27,8 +27,12 @@ Claude Code skill for crypto due diligence — project overview, team, funding, 
 
 ```bash
 # Required
-export ROOTDATA_API_KEY="your_key_here"
 export CMC_PRO_API_KEY="your_key_here"
+
+# RootData (pick one — Skill API recommended, auto-inits if neither set)
+export ROOTDATA_SKILL_KEY="your_key_here"  # auto-init via /open/skill/init, 200 req/min
+# OR
+export ROOTDATA_API_KEY="your_key_here"    # manual registration, credit-based
 
 # Optional
 export DUNE_API_KEY="your_key_here"
@@ -66,7 +70,7 @@ Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune 
 
 | Script | Description | Example |
 |--------|-------------|---------|
-| `rootdata-research.sh` | Project + team + investors + funding | `bash scripts/rootdata-research.sh Ethereum` |
+| `rootdata-research.sh` | Project + team + investors + funding + trending | `bash scripts/rootdata-research.sh Ethereum` |
 | `quick-research.sh` | CMC market data + risk flags | `bash scripts/quick-research.sh ETH` |
 | `cmc-research.sh` | CMC deep dive (info/quote/global/fear) | `bash scripts/cmc-research.sh ETH quote` |
 | `defillama-research.sh` | TVL, fees, revenue, DEX volume | `bash scripts/defillama-research.sh aave` |
@@ -102,7 +106,8 @@ Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune 
 | `sentiment X` / `lunarcrush X` | LunarCrush social sentiment & Galaxy Score |
 | `dune X` | Related Dune dashboards |
 | `compare X vs Y` | Side-by-side token comparison |
-| `trending` | Market overview + Fear & Greed |
+| `trending` | Market overview + Fear & Greed + RootData trending |
+| `rootdata trending` | RootData trending projects (today/week) |
 | `fear greed` | Fear & Greed index + global metrics |
 | `cmc X` | CMC project metadata |
 | `fundraising` | Today's crypto fundraising rounds |

@@ -20,9 +20,20 @@ set -euo pipefail
 MODE="${1:-today}"
 FILTER="${2:-}"
 
-RD_KEY="${ROOTDATA_API_KEY:-}"
+# Dual-key support: prefer ROOTDATA_SKILL_KEY, fallback to ROOTDATA_API_KEY
+RD_SKILL_KEY="${ROOTDATA_SKILL_KEY:-}"
+RD_API_KEY="${ROOTDATA_API_KEY:-}"
 RD_BASE="https://api.rootdata.com/open"
 DL_BASE="https://api.llama.fi"
+
+USE_SKILL_API=false
+RD_KEY=""
+if [[ -n "$RD_SKILL_KEY" ]]; then
+  RD_KEY="$RD_SKILL_KEY"
+  USE_SKILL_API=true
+elif [[ -n "$RD_API_KEY" ]]; then
+  RD_KEY="$RD_API_KEY"
+fi
 
 # ========================
 # Helpers
@@ -65,8 +76,8 @@ do_rootdata_fundraising() {
   local page_size="${4:-20}"
 
   if [[ -z "$RD_KEY" ]]; then
-    echo "⚠️ ROOTDATA_API_KEY not set — skipping RootData"
-    echo "   Apply at: https://www.rootdata.com/Api"
+    echo "⚠️ No RootData key set — skipping RootData"
+    echo "   Set ROOTDATA_SKILL_KEY (auto-init) or ROOTDATA_API_KEY (manual: https://www.rootdata.com/Api)"
     return 1
   fi
 
@@ -80,13 +91,23 @@ do_rootdata_fundraising() {
     body="{\"page\": $page, \"page_size\": $page_size}"
   fi
 
-  local data
-  data=$(curl -s --max-time 20 -X POST \
-    -H "apikey: $RD_KEY" \
-    -H "language: en" \
-    -H "Content-Type: application/json" \
-    -d "$body" \
-    "${RD_BASE}/get_fac" 2>/dev/null)
+  local data endpoint_path
+  if [[ "$USE_SKILL_API" == "true" ]]; then
+    endpoint_path="${RD_BASE}/skill/get_fac"
+    data=$(curl -s --max-time 20 -X POST \
+      -H "Authorization: Bearer $RD_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$body" \
+      "$endpoint_path" 2>/dev/null)
+  else
+    endpoint_path="${RD_BASE}/get_fac"
+    data=$(curl -s --max-time 20 -X POST \
+      -H "apikey: $RD_KEY" \
+      -H "language: en" \
+      -H "Content-Type: application/json" \
+      -d "$body" \
+      "$endpoint_path" 2>/dev/null)
+  fi
 
   local code
   code=$(echo "$data" | jq -r '.result // 0' 2>/dev/null)
@@ -320,12 +341,20 @@ case "$MODE" in
     # RootData search first
     if [[ -n "$RD_KEY" ]]; then
       echo "📡 RootData search..."
-      local_search=$(curl -s --max-time 15 -X POST \
-        -H "apikey: $RD_KEY" \
-        -H "language: en" \
-        -H "Content-Type: application/json" \
-        -d "{\"query\": \"$FILTER\"}" \
-        "${RD_BASE}/ser_inv" 2>/dev/null)
+      if [[ "$USE_SKILL_API" == "true" ]]; then
+        local_search=$(curl -s --max-time 15 -X POST \
+          -H "Authorization: Bearer $RD_KEY" \
+          -H "Content-Type: application/json" \
+          -d "{\"query\": \"$FILTER\", \"precise_x_search\": false}" \
+          "${RD_BASE}/skill/ser_inv" 2>/dev/null)
+      else
+        local_search=$(curl -s --max-time 15 -X POST \
+          -H "apikey: $RD_KEY" \
+          -H "language: en" \
+          -H "Content-Type: application/json" \
+          -d "{\"query\": \"$FILTER\"}" \
+          "${RD_BASE}/ser_inv" 2>/dev/null)
+      fi
 
       local_count=$(echo "$local_search" | jq '[.data[] | select(.type == 1)] | length' 2>/dev/null || echo "0")
       if [[ "$local_count" -gt 0 ]]; then

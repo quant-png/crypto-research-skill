@@ -4,7 +4,8 @@
 
 | API | Free Tier Limit | Notes |
 |-----|----------------|-------|
-| RootData | Credit-based (varies by plan) | Search is free & unlimited |
+| RootData (Skill API) | 200 req/min | Auto-init, no registration needed |
+| RootData (Standard API) | Credit-based (varies by plan) | Search is free & unlimited |
 | CoinMarketCap | 10,000 credits/mo, ~30 req/min | Free key at pro.coinmarketcap.com |
 | DefiLlama | Unlimited (fair use) | No key needed |
 | Kaito | No free API | Enterprise only; portal links free |
@@ -15,54 +16,88 @@
 
 ## RootData API
 
-**Base URL**: `https://api.rootdata.com/open`
-**Auth**: POST requests with headers `apikey: {key}` + `language: en|cn`
-**Apply for key**: https://www.rootdata.com/Api
+**Two access modes** (scripts auto-detect based on env vars):
 
-### 1. Search (free, unlimited)
-```
-POST /ser_inv
-Body: {"query": "keyword"}
-```
-Returns array: `id`, `type` (1=Project, 2=VC, 3=People), `name`, `logo`, `introduce`, `active`, `rootdataurl`
+| Mode | Env Var | Auth Header | Base Path | Rate Limit |
+|------|---------|-------------|-----------|------------|
+| **Skill API** (recommended) | `ROOTDATA_SKILL_KEY` | `Authorization: Bearer {key}` | `/open/skill/*` | 200 req/min |
+| **Standard API** | `ROOTDATA_API_KEY` | `apikey: {key}` + `language: en` | `/open/*` | Credit-based |
 
-### 2. Get Project (2 credits)
+**Auto-init (Skill API)** — no registration needed:
 ```
-POST /get_item
-Body: {"project_id": 12, "include_team": true, "include_investors": true}
+POST /open/skill/init
+Body: {}
+→ Returns: {"data": {"api_key": "..."}}
+```
+The key is anonymous, low-privilege, public data only. Save as `ROOTDATA_SKILL_KEY`.
+
+**Manual registration (Standard API)**: https://www.rootdata.com/Api
+
+### 1. Search
+```
+POST /skill/ser_inv  (Skill API)
+POST /ser_inv        (Standard API)
+Body: {"query": "keyword", "precise_x_search": false}
+```
+Returns array: `id`, `type` (1=Project, 2=VC, 3=People), `name`, `one_liner`, `introduce`, `rootdataurl`
+
+### 2. Get Project
+```
+POST /skill/get_item  (Skill API)
+POST /get_item        (Standard API)
+Body: {"project_id": 12, "include_investors": true}
 ```
 Also supports: `"contract_address": "0x..."` instead of project_id.
 
 **Returns**:
-- Basic: `project_name`, `token_symbol`, `one_liner`, `description`, `tags`, `ecosystem`, `establishment_date`, `total_funding`, `social_media`, `investors[]`, `team_members[]`, `similar_project[]`, `rootdataurl`, `active`
-- PRO: `price`, `market_cap`, `fully_diluted_market_cap`, `contracts[]`, `support_exchanges[]`, `event[]`, `reports[]`, `heat`, `heat_rank`, `influence`, `influence_rank`, `followers`, `token_launch_time`
+- Basic: `project_name`, `token_symbol`, `one_liner`, `description`, `tags`, `ecosystem`, `establishment_date`, `total_funding`, `social_media`, `investors[]`, `team_members[]`, `similar_project[]`, `contracts[]`, `rootdataurl`, `active`
+- PRO: `price`, `market_cap`, `fully_diluted_market_cap`, `support_exchanges[]`, `event[]`, `reports[]`, `heat`, `heat_rank`, `influence`, `influence_rank`, `followers`, `token_launch_time`
 
 **team_members[] fields**: `name`, `position`, `linkedin`, `twitter`, `website`, `discord`, `medium`
 **investors[] fields**: `name`, `logo`
 **social_media fields**: `website`, `twitter`, `discord`, `medium`, `linkedin`, `telegram`
 
-### 3. Get VC (2 credits)
+### 3. Get VC
 ```
-POST /get_org
+POST /skill/get_org  (Skill API)
+POST /get_org        (Standard API)
 Body: {"org_id": 219, "include_team": true, "include_investments": true}
 ```
 Returns: `org_name`, `description`, `category[]`, `establishment_date`, `social_media`, `team_members[]` (name, position), `investments[]` (name, logo), `rootdataurl`, `active`
 
-### 4. Get People (2 credits, Pro only)
+### 4. Get People (Standard API only, Pro)
 ```
 POST /get_people
 Body: {"people_id": 12972}
 ```
 Returns: `people_name`, `introduce`, `head_img`, `one_liner`, `X`, `linkedin`
 
-### 5. Get Fundraising Rounds (2 credits/record)
+### 5. Get Fundraising Rounds
 ```
-POST /get_fac
-Body: {}
+POST /skill/get_fac  (Skill API)
+POST /get_fac        (Standard API)
+Body: {"page": 1, "page_size": 20, "project_id": 12, "start_time": "2024-01", "end_time": "2025-12", "min_amount": 1000000, "max_amount": 100000000}
 ```
-Returns: `items[]` with `name`, `amount`, `valuation`, `published_time`, `rounds`, `invests[]` (name, logo)
+All filter fields optional. Data available from 2018 onwards.
+Returns: `total`, `items[]` with `name`, `amount`, `valuation`, `published_time`, `rounds`, `source_url`, `invests[]` (name, lead_investor, type, rootdataurl)
 
-### 6. Check Credits (free)
+### 6. Trending Projects (Skill API)
+```
+POST /skill/hot_index
+Body: {"days": 1}
+```
+`days`: 1 = today, 7 = this week
+Returns: `rank`, `project_id`, `project_name`, `token_symbol`, `one_liner`, `tags`, `X`, `rootdataurl`
+
+### 7. Get All IDs by Type (Skill API)
+```
+POST /skill/id_map
+Body: {"type": 1}
+```
+`type`: 1=Project, 2=Institution, 3=Person
+Returns: `id`, `name`
+
+### 8. Check Credits (Standard API, free)
 ```
 POST /quotacredits
 Body: {}

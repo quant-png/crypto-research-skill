@@ -1,35 +1,83 @@
 #!/bin/bash
 # rootdata-research.sh — Project research via RootData API (team, investors, funding)
 # Usage: ./rootdata-research.sh <project_name_or_id> [mode]
-# Modes: full (default), team, funding, vc <org_id>
+# Modes: full (default), team, funding, vc <org_id>, trending [1|7], idmap [1|2|3]
 # Example: ./rootdata-research.sh Ethereum
 # Example: ./rootdata-research.sh 12 team
 # Example: ./rootdata-research.sh "" vc 219
+# Example: ./rootdata-research.sh "" trending 7
+# Example: ./rootdata-research.sh "" idmap 1
 
 set -euo pipefail
 
-INPUT="${1:?Usage: $0 <project_name_or_id> [mode: full|team|funding|vc]}"
+INPUT="${1:-}"
 MODE="${2:-full}"
 VC_ID="${3:-}"
 
-RD_KEY="${ROOTDATA_API_KEY:-}"
+# Dual-key support: prefer ROOTDATA_SKILL_KEY (auto-init, no registration),
+# fallback to ROOTDATA_API_KEY (manual registration)
+RD_SKILL_KEY="${ROOTDATA_SKILL_KEY:-}"
+RD_API_KEY="${ROOTDATA_API_KEY:-}"
 RD_BASE="https://api.rootdata.com/open"
 
-if [[ -z "$RD_KEY" ]]; then
-  echo "❌ ROOTDATA_API_KEY is not set."
-  echo "Apply for a key at: https://www.rootdata.com/Api"
+# Determine which key and API path to use
+USE_SKILL_API=false
+RD_KEY=""
+
+if [[ -n "$RD_SKILL_KEY" ]]; then
+  RD_KEY="$RD_SKILL_KEY"
+  USE_SKILL_API=true
+elif [[ -n "$RD_API_KEY" ]]; then
+  RD_KEY="$RD_API_KEY"
+else
+  # Auto-init: generate anonymous skill key (no registration needed)
+  echo "🔑 No RootData key found. Auto-initializing skill key..."
+  INIT_RESP=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    "${RD_BASE}/skill/init" 2>/dev/null)
+  NEW_KEY=$(echo "$INIT_RESP" | jq -r '.data.api_key // .api_key // empty' 2>/dev/null)
+  if [[ -n "$NEW_KEY" ]]; then
+    RD_KEY="$NEW_KEY"
+    USE_SKILL_API=true
+    export ROOTDATA_SKILL_KEY="$NEW_KEY"
+    echo "✅ RootData skill key initialized. Set ROOTDATA_SKILL_KEY=$NEW_KEY to persist."
+  else
+    echo "❌ Failed to auto-init RootData skill key."
+    echo "Either set ROOTDATA_SKILL_KEY (auto-init) or ROOTDATA_API_KEY (manual: https://www.rootdata.com/Api)"
+    exit 1
+  fi
+fi
+
+# Validate INPUT for modes that require it
+if [[ -z "$INPUT" && "$MODE" != "trending" && "$MODE" != "idmap" ]]; then
+  echo "Usage: $0 <project_name_or_id> [mode: full|team|funding|vc|trending|idmap]"
   exit 1
 fi
 
 rd_post() {
   local endpoint="$1"
   local body="$2"
-  curl -s -X POST \
-    -H "apikey: $RD_KEY" \
-    -H "language: en" \
-    -H "Content-Type: application/json" \
-    -d "$body" \
-    "${RD_BASE}/${endpoint}" 2>/dev/null
+  local url
+
+  if [[ "$USE_SKILL_API" == "true" ]]; then
+    # Skill API: /open/skill/* with Bearer auth, 200 req/min
+    url="${RD_BASE}/skill/${endpoint}"
+    curl -s -X POST \
+      -H "Authorization: Bearer $RD_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$body" \
+      "$url" 2>/dev/null
+  else
+    # Standard API: /open/* with apikey header, credit-based
+    url="${RD_BASE}/${endpoint}"
+    curl -s -X POST \
+      -H "apikey: $RD_KEY" \
+      -H "language: en" \
+      -H "Content-Type: application/json" \
+      -d "$body" \
+      "$url" 2>/dev/null
+  fi
 }
 
 check_result() {
@@ -313,14 +361,138 @@ do_project() {
 }
 
 # ========================
+# Trending Projects (Skill API only)
+# ========================
+do_trending() {
+  local days="${1:-1}"
+  echo ""
+  echo "🔥 Trending Crypto Projects (RootData)"
+  echo "=========================================="
+  echo "  Period: $(if [[ "$days" == "1" ]]; then echo "Today"; else echo "This Week"; fi)"
+  echo ""
+
+  local data
+  data=$(rd_post "hot_index" "{\"days\": $days}")
+  check_result "$data" || return
+
+  local count
+  count=$(echo "$data" | jq '.data // [] | length' 2>/dev/null)
+  if [[ "$count" -eq 0 ]]; then
+    echo "  No trending data available."
+    return
+  fi
+
+  echo "$data" | jq -r '.data[] |
+    "#\(.rank // "-") \(.project_name // .name // "Unknown") (\(.token_symbol // "—"))",
+    "  \(.one_liner // "")",
+    "  Tags: \(.tags // [] | join(", ") | if . == "" then "—" else . end)",
+    "  X: \(.X // .twitter // "—")",
+    "  RootData: \(.rootdataurl // "—")",
+    ""
+  ' 2>/dev/null
+}
+
+# ========================
+# ID Map (Skill API only)
+# ========================
+do_idmap() {
+  local type_num="${1:-1}"
+  local type_name
+  case "$type_num" in
+    1) type_name="Projects" ;;
+    2) type_name="Institutions" ;;
+    3) type_name="People" ;;
+    *) echo "❌ Invalid type: $type_num (use 1=Project, 2=Institution, 3=Person)"; return 1 ;;
+  esac
+
+  echo ""
+  echo "📋 RootData ID Map — $type_name"
+  echo "=========================================="
+
+  local data
+  data=$(rd_post "id_map" "{\"type\": $type_num}")
+  check_result "$data" || return
+
+  local count
+  count=$(echo "$data" | jq '.data // [] | length' 2>/dev/null)
+  echo "Total: $count entries (showing first 50)"
+  echo ""
+
+  echo "$data" | jq -r '.data[:50][] |
+    "  \(.id) — \(.name // "Unknown")"
+  ' 2>/dev/null
+}
+
+# ========================
+# Funding Rounds (with skill API support)
+# ========================
+do_funding_rounds() {
+  echo ""
+  echo "💰 Funding Rounds (RootData)"
+  echo "=========================================="
+
+  local body="{\"page\": 1, \"page_size\": 20"
+  # If we have a project ID, filter by it
+  if [[ -n "${PROJECT_ID:-}" ]]; then
+    body="$body, \"project_id\": $PROJECT_ID"
+  fi
+  body="$body}"
+
+  local data
+  data=$(rd_post "get_fac" "$body")
+  check_result "$data" || return
+
+  local total
+  total=$(echo "$data" | jq -r '.data.total // 0' 2>/dev/null)
+  local count
+  count=$(echo "$data" | jq '.data.items // [] | length' 2>/dev/null)
+
+  echo "📊 Found $total total rounds (showing $count)"
+  echo ""
+
+  if [[ "$count" -eq 0 ]]; then
+    echo "  No funding rounds found."
+    return
+  fi
+
+  echo "$data" | jq -r '.data.items[] |
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "🏷️ \(.name // "Unknown")",
+    "  Round: \(.rounds // "N/A")",
+    "  Amount: $\((.amount // 0) | if . >= 1e6 then (. / 1e6 | . * 100 | round / 100 | tostring) + "M" elif . >= 1e3 then (. / 1e3 | round | tostring) + "K" elif . > 0 then tostring else "Undisclosed" end)",
+    "  Valuation: $\((.valuation // 0) | if . == 0 then "N/A" elif . >= 1e9 then (. / 1e9 | . * 100 | round / 100 | tostring) + "B" elif . >= 1e6 then (. / 1e6 | . * 100 | round / 100 | tostring) + "M" else tostring end)",
+    "  Date: \(.published_time // "N/A")",
+    "  Source: \(.source_url // "N/A")",
+    "  Investors: \(.invests // [] | map(.name + if .lead_investor == true then " ⭐" else "" end) | join(", ") | if . == "" then "N/A" else . end)"
+  ' 2>/dev/null
+}
+
+# ========================
 # Main
 # ========================
 
 echo "=========================================="
 echo "🔍 RootData Research"
+if [[ "$USE_SKILL_API" == "true" ]]; then
+  echo "  (using Skill API — 200 req/min)"
+else
+  echo "  (using Standard API — credit-based)"
+fi
 echo "=========================================="
 
 case "$MODE" in
+  trending)
+    DAYS="${VC_ID:-1}"
+    if [[ -z "$DAYS" || "$DAYS" == "" ]]; then DAYS=1; fi
+    # Also accept INPUT as days if VC_ID not set
+    if [[ -n "$INPUT" && "$INPUT" =~ ^[17]$ ]]; then DAYS="$INPUT"; fi
+    do_trending "$DAYS"
+    ;;
+  idmap)
+    TYPE_NUM="${VC_ID:-1}"
+    if [[ -n "$INPUT" && "$INPUT" =~ ^[123]$ ]]; then TYPE_NUM="$INPUT"; fi
+    do_idmap "$TYPE_NUM"
+    ;;
   vc)
     if [[ -z "$VC_ID" ]]; then
       # If INPUT is a number, use it as vc id
@@ -343,13 +515,15 @@ case "$MODE" in
         ;;
       funding)
         do_project "false" "true"
+        do_funding_rounds
         ;;
       full)
         do_project "true" "true"
+        do_funding_rounds
         ;;
       *)
         echo "Unknown mode: $MODE"
-        echo "Usage: $0 <name_or_id> [full|team|funding|vc]"
+        echo "Usage: $0 <name_or_id> [full|team|funding|vc|trending|idmap]"
         exit 1
         ;;
     esac
