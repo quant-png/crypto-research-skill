@@ -1,7 +1,7 @@
 ---
 name: crypto-research
 description: Crypto project research assistant — project overview, team background, funding history, investors, market data, token info, daily fundraising rounds (crypto + all sectors via Crunchbase), Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, GitHub development activity. Read-only, no trading. Use when user says research, analyze, DYOR, due diligence, investigate, compare tokens, trending, team, funding, investors, fundraising, raises, crunchbase, twitter, tweets, reddit, youtube, github, read, search.
-version: 2.7.0
+version: 2.8.0
 metadata:
   openclaw:
     emoji: "🔍"
@@ -685,7 +685,115 @@ curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMemberCount?chat_
 - **Only show sections that have data.** If DefiLlama has no fees data, skip the fees section entirely.
 - **Script output is for the AI to parse internally.** Present the final result to the user in your own concise format — do NOT dump raw script output.
 
-## Output Format
+## Platform Output Format
+
+输出格式必须严格匹配目标平台的消息格式标准。根据调用来源自动适配：
+
+### Slack (mrkdwn 格式)
+
+Slack 使用自己的 `mrkdwn` 语法，**不是标准 Markdown**。必须遵守以下规则：
+
+| 元素 | Slack 语法 | ❌ 禁止使用 |
+|------|-----------|------------|
+| 粗体 | `*bold*` | `**bold**` |
+| 斜体 | `_italic_` | `*italic*` |
+| 删除线 | `~strikethrough~` | `~~strikethrough~~` |
+| 行内代码 | `` `code` `` | — |
+| 代码块 | `` ```code``` `` | — |
+| 链接 | `<https://url\|显示文字>` | `[文字](url)` |
+| 引用 | `>` (单行) | `>` 多行块引用 |
+| 列表 | `•` 或 `1.`（纯文本） | `-` (不渲染为列表) |
+| 标题 | **无标题语法** — 用 `*粗体*` 模拟 | `# Heading`、`## Heading` |
+| 分隔线 | **不支持** — 用空行或 `───` 纯文本 | `---`、`***` |
+| 换行 | `\n`（直接换行） | `<br>` |
+
+**Slack 关键限制：**
+- 不支持 `#` 标题 — 用 `*Section Title*` 粗体替代
+- 不支持 `**双星号**` 粗体 — 必须用 `*单星号*`
+- 不支持 Markdown 链接 `[text](url)` — 必须用 `<url|text>`
+- 不支持嵌套格式（如粗体内斜体）
+- Emoji 直接使用 Unicode 或 `:emoji_name:` 短码
+
+**Slack 输出示例：**
+```
+*Ethereum (ETH)*
+
+*TL;DR:* 最大的智能合约平台，生态最成熟，机构采用率最高
+
+*Overview:* Layer 1 智能合约平台 · Est. 2015 · Tags: Smart Contract, Layer 1
+Links: <https://ethereum.org|官网> · <https://x.com/ethereum|Twitter> · <https://github.com/ethereum|GitHub>
+
+*Market:* Price $3,456 · MCap $415B · FDV $415B · Rank #2 · Vol $18.2B
+Changes: 1h +0.3% · 24h -1.2% · 7d +5.8% · 30d +12.3%
+
+*Funding:* $18.3M raised (ICO 2014) · Investors: *Vitalik Buterin*, *Ethereum Foundation*
+
+*TVL & Revenue:* TVL $48.2B (+3.5% 7d) · Fees $4.2M/d · Revenue $2.1M/d
+
+⚠️ Not financial advice. DYOR.
+```
+
+### Telegram (HTML 格式)
+
+Telegram Bot API 的 `parse_mode: HTML` 格式。**必须使用 HTML 标签，不是 Markdown。**
+
+| 元素 | Telegram HTML 语法 |
+|------|-------------------|
+| 粗体 | `<b>bold</b>` |
+| 斜体 | `<i>italic</i>` |
+| 下划线 | `<u>underline</u>` |
+| 删除线 | `<s>strikethrough</s>` |
+| 行内代码 | `<code>code</code>` |
+| 代码块 | `<pre>code block</pre>` |
+| 指定语言代码块 | `<pre><code class="language-python">code</code></pre>` |
+| 链接 | `<a href="https://url">显示文字</a>` |
+| 引用 | `<blockquote>text</blockquote>` |
+| 可折叠引用 | `<blockquote expandable>long text</blockquote>` |
+
+**Telegram 关键限制：**
+- 不支持 `#` 标题、`---` 分隔线、`- ` 列表语法
+- 标题效果用 `<b>Section Title</b>` 实现
+- 列表用 `• ` 或 `1. `（纯文本，前面加换行）
+- 所有 HTML 特殊字符必须转义：`<` → `&lt;`、`>` → `&gt;`、`&` → `&amp;`（在标签之外的文本中）
+- 不支持嵌套超过 2 层的标签
+- 消息最大长度 4096 字符 — 超长内容需拆分发送或使用 `<blockquote expandable>` 折叠
+- 支持嵌套格式：`<b><i>粗斜体</i></b>`
+
+**Telegram 输出示例：**
+```html
+<b>Ethereum (ETH)</b>
+
+<b>TL;DR:</b> 最大的智能合约平台，生态最成熟，机构采用率最高
+
+<b>Overview:</b> Layer 1 智能合约平台 · Est. 2015 · Tags: Smart Contract, Layer 1
+Links: <a href="https://ethereum.org">官网</a> · <a href="https://x.com/ethereum">Twitter</a> · <a href="https://github.com/ethereum">GitHub</a>
+
+<b>Market:</b> Price $3,456 · MCap $415B · FDV $415B · Rank #2 · Vol $18.2B
+Changes: 1h +0.3% · 24h -1.2% · 7d +5.8% · 30d +12.3%
+
+<b>Funding:</b> $18.3M raised (ICO 2014) · Investors: <b>Vitalik Buterin</b>, <b>Ethereum Foundation</b>
+
+<b>TVL &amp; Revenue:</b> TVL $48.2B (+3.5% 7d) · Fees $4.2M/d · Revenue $2.1M/d
+
+⚠️ Not financial advice. DYOR.
+```
+
+### 平台检测规则
+
+| 调用来源 | 输出格式 |
+|---------|---------|
+| Slack（通过 Slack bot / webhook 触发） | Slack mrkdwn |
+| Telegram（通过 TG bot 触发） | Telegram HTML |
+| 终端 / CLI / 其他 | 标准 Markdown |
+
+如果无法确定平台，默认使用标准 Markdown。用户可通过指令明确指定：
+- `format:slack` — 强制 Slack mrkdwn 输出
+- `format:telegram` 或 `format:tg` — 强制 Telegram HTML 输出
+- `format:markdown` 或 `format:md` — 强制标准 Markdown 输出
+
+## Output Format (Standard Markdown)
+
+以下为标准 Markdown 格式模板，用于终端/CLI 输出。Slack 和 Telegram 输出需按上方平台规则转换。
 
 ### For full research ("research X"):
 
