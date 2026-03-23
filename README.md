@@ -1,4 +1,4 @@
-# crypto-research v2.7.0
+# crypto-research v2.8.0
 
 Claude Code skill for crypto due diligence — project overview, team, funding, investors, market data, TVL, mindshare, on-chain dashboards, cross-sector fundraising, Twitter/X social sentiment, web reading, semantic search, Reddit discussions, YouTube research, and GitHub development activity. Read-only, no trading.
 
@@ -128,6 +128,18 @@ Degrades gracefully — DefiLlama (TVL, fees, raises), Kaito portal links, Dune 
 | `github activity owner/repo` | Dev activity analysis |
 
 Chinese commands supported: `调研`, `团队`, `融资`, `行情`, `对比`, `热门`, `CB融资`, `注意力`, `社区`, `收入`, `恐贪指数`, `推特`, `阅读`, `搜索`, `视频`, `代码`, `情绪`.
+
+## Output Format
+
+输出格式根据调用平台自动适配，严格遵循各平台消息格式标准：
+
+| 平台 | 格式 | 关键规则 |
+|------|------|---------|
+| **Slack** | mrkdwn | `*bold*`（非 `**`）、`<url\|text>` 链接、无 `#` 标题 |
+| **Telegram** | HTML | `<b>bold</b>`、`<a href="">link</a>`、特殊字符转义、4096 字符限制 |
+| **CLI / 终端** | Standard Markdown | `## 标题`、`**bold**`、`[text](url)` |
+
+手动指定格式：`format:slack` / `format:tg` / `format:md`
 
 ## Requirements
 
